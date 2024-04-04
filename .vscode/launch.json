@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "/Users/matthewlee/Desktop/UofTEng 2nd Year/2nd Semester/ece243/cellmonitoringprogram-ece243",
+      "program": "/Users/matthewlee/Desktop/UofTEng 2nd Year/2nd Semester/ece243/cellmonitoringprogram-ece243/build/Debug/outDebug"
+    }
+  ]
+}
