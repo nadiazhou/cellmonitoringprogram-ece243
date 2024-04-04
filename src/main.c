@@ -6,11 +6,32 @@
 volatile int pattern = 0x0000000F;   // pattern for shifting
 volatile int shift_dir = 0;       // direction to shift the pattern, left(0), right(1)
 volatile int shift_enable = 1;  // enable(1)/disable(0) shifting of the pattern
+volatile int ADC_value = 0;     // ADC value
+
+
 volatile int TIMER_BASE = 0xFF202000;
 volatile int KEY_BASE = 0xFF200050;
 volatile int SW_BASE = 0xFF200040;
 volatile int LED_BASE = 0xFF200000;
 volatile int ADC_BASE = 0xFF204000;
+volatile int HEX_BASE1 = 0xFF200020;
+volatile int HEX_BASE2 = 0xFF200030;
+
+
+// ADC register offsets
+// data in lower 12 bits
+struct ADC_t {
+    volatile unsigned int channel0;  // write 1 to start conversion
+    volatile unsigned int channel1;  // write 1 to auto sample
+    volatile unsigned int channel2;
+    volatile unsigned int channel3;
+    volatile unsigned int channel4;
+    volatile unsigned int channel5;
+    volatile unsigned int channel6;
+    volatile unsigned int channel7;
+};
+
+
 
 #ifndef __NIOS2_CTRL_REG_MACROS__
 #define __NIOS2_CTRL_REG_MACROS__
@@ -56,6 +77,7 @@ int main(void);
 void interrupt_handler(void);
 void interval_timer_ISR(void);
 void pushbutton_ISR(void);
+void WriteHEX(int value);
 
 /* The assembly language code below handles CPU reset processing */
 void the_reset(void) __attribute__((section(".reset")));
@@ -186,31 +208,20 @@ void interrupt_handler(void) {
 }
 
 extern volatile int pattern, shift_dir, shift_enable;
+
 /*******************************************************************************
  * Interval timer interrupt service routine
- *
- * Shifts a PATTERN being displayed on the LED lights. The shift direction
- * is determined by the external variable key_dir.
  ******************************************************************************/
 void interval_timer_ISR() {
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;
-    volatile int *LEDG_ptr = (int *)LED_BASE;  // LED address
+    struct ADC_t *const ADCp = (struct ADC_t *)ADC_BASE;
+
     *(interval_timer_ptr) = 0;                 // clear the interrupt
-    *(LEDG_ptr) = pattern;                     // display pattern on LED
-    if (shift_enable == 0)               // check if shifting is disabled
-        return;
-    /* rotate the pattern shown on the LEDG lights */
-    if (shift_dir == 0)  // rotate left
-        if (pattern & 0x80000000)
-        pattern = (pattern << 1) | 1;
-        else
-        pattern = pattern << 1;
-    else  // rotate right
-        if (pattern & 0x00000001)
-        pattern = (pattern >> 1) | 0x80000000;
-        else
-        pattern = (pattern >> 1) & 0x7FFFFFFF;
-    return;
+
+     ADCp->channel0 = 1;
+    while (ADCp->channel0 & 0x8000);
+    ADC_value = (ADCp->channel0 & 0xFFF);
+
 }
 
 extern volatile int pattern, shift_dir, shift_enable;
@@ -234,33 +245,76 @@ void pushbutton_ISR(void) {
 }
 
 /*******************************************************************************
- * This program demonstrates use of interrupts. It
- * first starts the interval timer with 50 msec timeouts, and then enables
- * Nios II interrupts from the interval timer and pushbutton KEYs
- *
- * The interrupt service routine for the interval timer displays a pattern on
- * the LED lights, and shifts this pattern either left or right. The shifting
- * direction is reversed when KEY[1] is pressed
+
  ********************************************************************************/
 int main(void) {
-    /* Declare volatile pointers to I/O registers (volatile means that IO load
-    * and store instructions will be used to access these pointer locations,
-    * instead of regular memory loads and stores)
-    */
+
     volatile int *interval_timer_ptr = (int *)TIMER_BASE; // interal timer base address
     volatile int *KEY_ptr = (int *)KEY_BASE; // pushbutton KEY address
 
-    /* set the interval timer period for scrolling the LED lights */
-    int counter = 2500000;  // 1/(50 MHz) x (2500000) = 50 msec
+
+
+    /* set the interval timer period for scrolling the ADC reads */
+    int counter = 5000000;  // 1/(50 MHz) x (5000000) = 100 msec, 100Hz
     *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
     *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
     /* start interval timer, enable its interrupts */
     *(interval_timer_ptr + 1) = 0x7;  // STOP = 0, START = 1, CONT = 1, ITO = 1
+
+
+
     *(KEY_ptr + 2) = 0x3;             // enable interrupts for all pushbuttons
-    /* set interrupt mask bits for levels 0 (interval timer) and level 1
-    * (pushbuttons) */
+    
+    
+    
+    /* set interrupt mask bits for levels 0 (interval timer) and level 1 (pushbuttons) */
     NIOS2_WRITE_IENABLE(0x3);
     NIOS2_WRITE_STATUS(1);  // enable Nios II interrupts
-    while (1)
-        ;  // main program simply idles
+    
+    
+    
+    while (1) {
+        WriteHEX(ADC_value);
+    }
+}
+
+
+
+void WriteHEX(int value) {
+    const char kHexCodes[16] = {
+        0b00111111,  // 0
+        0b00000110,  // 1
+        0b01011011,  // 2
+        0b01001111,  // 3
+        0b01100110,  // 4
+        0b01101101,  // 5
+        0b01111101,  // 6
+        0b00000111,  // 7
+        0b01111111,  // 8
+        0b01101111,  // 9
+        0b01110111,  // A
+        0b01111100,  // B
+        0b00111001,  // C
+        0b01011110,  // D
+        0b01111001,  // E
+        0b01110001   // F
+    };
+
+    int* HexAdd1 = (int*)HEX_BASE1;
+    int* HexAdd2 = (int*)HEX_BASE2;
+
+    // Clear the HEX displays
+    *HexAdd1 = 0;
+    *HexAdd2 = 0;
+    
+    int value0 = kHexCodes[value % 10];
+    int value1 = kHexCodes[(value / 10) % 10];
+    int value2 = kHexCodes[(value / 100) % 10];
+    int value3 = kHexCodes[(value / 1000) % 10];
+    int value4 = kHexCodes[(value / 10000) % 10];
+    int value5 = kHexCodes[(value / 100000) % 10];
+
+    *HexAdd1 = value0 | (value1 << 8) | (value2 << 16) | (value3 << 24);
+    *HexAdd2 = value4 | (value5 << 8);
+
 }
