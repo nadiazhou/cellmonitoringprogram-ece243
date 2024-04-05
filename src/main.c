@@ -10,7 +10,7 @@ volatile int voltage[100000] = {0};
 volatile int voltage_index = 0;
 volatile int voltage_scaling = 23; // scale of voltage y-axis (mV/pixel)
 volatile int x_axis_scaling = 1; // scale of x-axis in terms of ADC samples (dynamic)
-volatile int State = 0;
+volatile int State = 3;
 
 
 volatile int TIMER_BASE = 0xFF202000;
@@ -332,7 +332,7 @@ int main(void) {
     *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
     *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
     /* start interval timer, enable its interrupts */
-    *(interval_timer_ptr + 1) = 0b1011;  // STOP = 0, START = 1, CONT = 1, ITO = 1
+    *(interval_timer_ptr + 1) = 0b0111;  // STOP = 0, START = 1, CONT = 1, ITO = 1
 
     // enable interrupts for all pushbuttons
     *(KEY_ptr + 2) = 0xF;             
