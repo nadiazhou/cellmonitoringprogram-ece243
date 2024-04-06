@@ -1,17 +1,20 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
 /* the global variables are written by interrupt service routines; we have to
  * declare
  * these as volatile to avoid the compiler caching their values in registers */
-volatile int ADC_value = 0;     // ADC value
+volatile int ADC_value = 0;  // ADC value
 volatile int voltage[100000] = {0};
-volatile int voltage_index = 0;
-volatile int voltage_scaling = 23; // scale of voltage y-axis (mV/pixel)
-volatile int x_axis_scaling = 1; // scale of x-axis in terms of ADC samples (dynamic)
+volatile int current[100000] = {0};
+volatile int power[100000] = {0};
+volatile int energy = 0; // Joules
+volatile int sample_index = 0;
+volatile int voltage_scaling = 27;  // scale of voltage y-axis (mV/pixel) (180 pixel height)
+volatile int current_scaling = 23;  // scale of current y-axis (mA/pixel) (180 pixel height)
+volatile int x_axis_scaling = 1;  // scale of x-axis in terms of ADC samples (dynamic)
 volatile int State = 3;
-
 
 volatile int TIMER_BASE = 0xFF202000;
 volatile int KEY_BASE = 0xFF200050;
@@ -21,13 +24,179 @@ volatile int ADC_BASE = 0xFF204000;
 volatile int HEX_BASE1 = 0xFF200020;
 volatile int HEX_BASE2 = 0xFF200030;
 
-
-
 volatile int pixel_buffer_start;  // global variable
 short int Buffer1[240][512];      // 240 rows, 512 (320 + padding) columns
 short int Buffer2[240][512];
 
+static int font[128][2] = {
+    {0x7E7E7E7E, 0x00007E7E}, /* NUL */
+    {0x7E7E7E7E, 0x00007E7E}, /* SOH */
+    {0x7E7E7E7E, 0x00007E7E}, /* STX */
+    {0x7E7E7E7E, 0x00007E7E}, /* ETX */
+    {0x7E7E7E7E, 0x00007E7E}, /* EOT */
+    {0x7E7E7E7E, 0x00007E7E}, /* ENQ */
+    {0x7E7E7E7E, 0x00007E7E}, /* ACK */
+    {0x7E7E7E7E, 0x00007E7E}, /* BEL */
+    {0x7E7E7E7E, 0x00007E7E}, /* BS */
+    {0x00000000, 0x00000000}, /* TAB */
+    {0x7E7E7E7E, 0x00007E7E}, /* LF */
+    {0x7E7E7E7E, 0x00007E7E}, /* VT */
+    {0x7E7E7E7E, 0x00007E7E}, /* FF */
+    {0x7E7E7E7E, 0x00007E7E}, /* CR */
+    {0x7E7E7E7E, 0x00007E7E}, /* SO */
+    {0x7E7E7E7E, 0x00007E7E}, /* SI */
 
+    {0x7E7E7E7E, 0x00007E7E}, /* DLE */
+    {0x7E7E7E7E, 0x00007E7E}, /* DC1 */
+    {0x7E7E7E7E, 0x00007E7E}, /* DC2 */
+    {0x7E7E7E7E, 0x00007E7E}, /* DC3 */
+    {0x7E7E7E7E, 0x00007E7E}, /* DC4 */
+    {0x7E7E7E7E, 0x00007E7E}, /* NAK */
+    {0x7E7E7E7E, 0x00007E7E}, /* SYN */
+    {0x7E7E7E7E, 0x00007E7E}, /* ETB */
+    {0x7E7E7E7E, 0x00007E7E}, /* CAN */
+    {0x7E7E7E7E, 0x00007E7E}, /* EM */
+    {0x7E7E7E7E, 0x00007E7E}, /* SUB */
+    {0x7E7E7E7E, 0x00007E7E}, /* ESC */
+    {0x7E7E7E7E, 0x00007E7E}, /* FS */
+    {0x7E7E7E7E, 0x00007E7E}, /* GS */
+    {0x7E7E7E7E, 0x00007E7E}, /* RS */
+    {0x7E7E7E7E, 0x00007E7E}, /* US */
+
+    {0x00000000, 0x00000000}, /* (space) */
+    {0x8080808, 0x00080000},  /* ! */
+    {0x28280000, 0x00000000}, /* " */
+    {0x287C287C, 0x28280000}, /* # */
+    {0x81E281C, 0x0A3C0800},  /* $ */
+    {0x60946816, 0x29060000}, /* % */
+    {0x1C202019, 0x26190000}, /* & */
+    {0x8080000, 0x00000000},  /* ' */
+    {0x8102020, 0x10080000},  /* ( */
+    {0x10080404, 0x08100000}, /* ) */
+    {0x2A1C3E1C, 0x2A000000}, /* * */
+    {0x0008083E, 0x08080000}, /* + */
+    {0x00000000, 0x00081000}, /* , */
+    {0x0000003C, 0x00000000}, /* - */
+    {0x00000000, 0x00800000}, /* . */
+    {0x00020408, 0x10204000}, /* / */
+
+    {0x18244242, 0x24180000}, /* 0 */
+    {0x08180808, 0x081C0000}, /* 1 */
+    {0x3C420418, 0x207E0000}, /* 2 */
+    {0x3C420418, 0x423C0000}, /* 3 */
+    {0x8182848, 0x7C080000},  /* 4 */
+    {0x7E407C02, 0x423C0000}, /* 5 */
+    {0x3C407C42, 0x423C0000}, /* 6 */
+    {0x7E040810, 0x20400000}, /* 7 */
+    {0x3C423C42, 0x423C0000}, /* 8 */
+    {0x3C42423E, 0x023C0000}, /* 9 */
+    {0x00000800, 0x00080000}, /* : */
+    {0x00000800, 0x00081000}, /* ; */
+    {0x06186060, 0x18060000}, /* < */
+    {0x00007E00, 0x7E000000}, /* = */
+    {0x60180618, 0x60000000}, /* > */
+    {0x38440418, 0x00100000}, /* ? */
+    {0x03C449C, 0x945C201C},  /* @ */
+    {0x3C42423C, 0x42420000}, /* A */
+    {0x78447844, 0x44780000}, /* B */
+    {0x38448080, 0x44380000}, /* C */
+    {0x78444444, 0x44780000}, /* D */
+    {0x7C407840, 0x407C0000}, /* E */
+    {0x7C407840, 0x40400000}, /* F */
+    {0x3844809C, 0x44380000}, /* G */
+    {0x42427E42, 0x42420000}, /* H */
+    {0x3E080808, 0x083E0000}, /* I */
+    {0x1C040404, 0x44380000}, /* J */
+    {0x44485070, 0x48440000}, /* K */
+    {0x40404040, 0x407E0000}, /* L */
+    {0x41635549, 0x41410000}, /* M */
+    {0x4262524A, 0x46420000}, /* N */
+    {0x1C222222, 0x221C0000}, /* O */
+    {0x78447840, 0x40400000}, /* P */
+    {0x1C222222, 0x221C0200}, /* Q */
+    {0x78447850, 0x48440000}, /* R */
+    {0x1C22100C, 0x221C0000}, /* S */
+    {0x7F080808, 0x08080000}, /* T */
+    {0x42424242, 0x423C0000}, /* U */
+    {0x81424224, 0x24180000}, /* V */
+    {0x41414955, 0x63220000}, /* W */
+    {0x42241818, 0x24420000}, /* X */
+    {0x41221408, 0x08080000}, /* Y */
+    {0x7E040810, 0x207E0000}, /* Z */
+    {0x38202020, 0x20380000}, /* [ */
+    {0x40201008, 0x04020000}, /* \ */
+    {0x38080808, 0x08380000}, /* ] */
+    {0x10280000, 0x00000000}, /* ^ */
+    {0x0, 0x7E0000},          /* _ */
+    {0x10080000, 0x00000000}, /* ` */
+    {0x00003C02, 0x3E463A00}, /* a */
+    {0x40407C42, 0x62625C00}, /* b */
+    {0x00001C20, 0x201C0000}, /* c */
+    {0x02023E46, 0x463A0000}, /* d */
+    {0x00003C42, 0x7E403C00}, /* e */
+    {0x18103810, 0x10100000}, /* f */
+    {0x0000344C, 0x44340438}, /* g */
+    {0x20203824, 0x24240000}, /* h */
+    {0x8000808, 0x08080000},  /* i */
+    {0x8001808, 0x08080870},  /* j */
+    {0x20202428, 0x302C0000}, /* k */
+    {0x10101010, 0x10180000}, /* l */
+    {0x0000665A, 0x42420000}, /* m */
+    {0x00002E32, 0x22220000}, /* n */
+    {0x00003C42, 0x423C0000}, /* o */
+    {0x00005C62, 0x427C4040}, /* p */
+    {0x00003A46, 0x423E0202}, /* q */
+    {0x00002C32, 0x20200000}, /* r */
+    {0x00001C20, 0x18043800}, /* s */
+    {0x0000103C, 0x10101800}, /* t */
+    {0x00002222, 0x261A0000}, /* u */
+    {0x00004242, 0x24180000}, /* v */
+    {0x00008181, 0x5A660000}, /* w */
+    {0x00004224, 0x18660000}, /* x */
+    {0x4222, 0x14081060},     /* y */
+    {0x00007C08, 0x10207C00}, /* z */
+    {0x1C103030, 0x101C0000}, /* { */
+    {0x8080808, 0x08080800},  /* | */
+    {0x38080C0C, 0x08380000}, /* } */
+    {0x32, 0x4C000000},       /* ~ */
+    {0x7E7E7E7E, 0x7E7E0000}  /* DEL */
+};
+
+void DrawCharacter(int x, int y, char c, int color) {
+    int i, j;
+    unsigned int mask;
+    int charIndex = c;
+
+    mask = 0x80000000;  // Reset mask for each new line
+    // Loop for the top half of the character (8x4)
+    for (i = 0; i < 8; i++) {
+        if (i == 4) {
+        mask = 0x80000000;  // Reset mask for the bottom half of the character
+        }
+        for (j = 0; j < 8; j++) {
+        // Use font[charIndex][0] for the top 32 bits
+        if ((i < 4 && (font[charIndex][0] & mask)) ||
+            (i >= 4 && (font[charIndex][1] & mask))) {
+            plot_pixel(x + j, y + i, color);
+        }
+        mask >>= 1;  // Shift mask right for next bit
+        }
+    }
+}
+
+void DrawString(int x, int y, char *string, int color) {
+    int i = 0;
+    while (string[i]) {
+        DrawCharacter(x + i * 8, y, string[i], color);
+        i++;
+    }
+}
+
+void DrawInteger(int x, int y, int num, int color) {
+    char str[10];
+    sprintf(str, "%d", num);
+    DrawString(x, y, str, color);
+}
 
 // ADC register offsets
 // data in lower 12 bits
@@ -41,8 +210,6 @@ struct ADC_t {
     volatile unsigned int channel6;
     volatile unsigned int channel7;
 };
-
-
 
 #ifndef __NIOS2_CTRL_REG_MACROS__
 #define __NIOS2_CTRL_REG_MACROS__
@@ -93,7 +260,8 @@ void clear_screen();
 void wait_for_vsync();
 void plot_pixel(int x, int y, short int line_color);
 void draw_line(int x0, int y0, int x1, int y1, short int color);
-void drawBox(int row, int col, short int color);
+void drawFilledBox(int x1, int y1, int x2, int y2, short int color);
+void DrawRectangle(int x1, int y1, int x2, int y2, short int color);
 void swap(int *a, int *b);
 
 /* The assembly language code below handles CPU reset processing */
@@ -224,7 +392,6 @@ void interrupt_handler(void) {
     return;
 }
 
-
 /*******************************************************************************
  * Interval timer interrupt service routine
  ******************************************************************************/
@@ -232,18 +399,17 @@ void interval_timer_ISR() {
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;
     struct ADC_t *const ADCp = (struct ADC_t *)ADC_BASE;
 
-    *(interval_timer_ptr) = 0;                 // clear the interrupt
+    *(interval_timer_ptr) = 0;  // clear the interrupt
 
-     ADCp->channel0 = 1;
+    ADCp->channel0 = 1;
     while (ADCp->channel0 & 0x8000);
-    ADC_value = (ADCp->channel0 & 0xFFF);
-    voltage[voltage_index] = ADC_value;
-    voltage_index++;
 
+    voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 1000 / 4096 * 5;
+    current[sample_index] = (ADCp->channel1 & 0xFFF) * 1000 / 4096 * 5 / 2;
+    energy = energy + voltage[sample_index] * current[sample_index] * 36 / 10 / 3600 / 100;
+
+    sample_index++;
 }
-
-
-
 
 /*******************************************************************************
  * Pushbutton - Interrupt Service Routine
@@ -255,7 +421,7 @@ void interval_timer_ISR() {
 void pushbutton_ISR(void) {
     volatile int *KEY_ptr = (int *)KEY_BASE;
     volatile int *slider_switch_ptr = (int *)SW_BASE;
-    volatile int *interval_timer_ptr = (int *)TIMER_BASE; // interal timer base address
+    volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
 
     int press;
     int counter;
@@ -263,68 +429,55 @@ void pushbutton_ISR(void) {
     press = *(KEY_ptr + 3);  // read the pushbutton interrupt register
     *(KEY_ptr + 3) = press;  // Clear the interrupt
 
-        switch (State) {
-            case 0:
-                if (press & 0x1) {
-                    State = 3;
-                }
-            break;
+    switch (State) {
+        case 0:
+            if (press & 0x1) {
+                State = 3;
+            }
+        break;
 
-            case 1:
+        case 1:
 
+        break;
 
+        case 2:
 
+        break;
 
-
-            break;
-
-            case 2:
-
-
-
-
-            break;
-
-            case 3:
-                if (press & 0x1) {    // KEY0
-                    *(interval_timer_ptr + 1) = 0b1011;
-                }
-                if (press & 0x2) {   // KEY1
-                    counter = 5000000;
-                    *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
-                    *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
-                    *(interval_timer_ptr + 1) = 0b0111;
-                }
-                if (press & 0x4) {   // KEY2
-                    counter = 500000;
-                    *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
-                    *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
-                    *(interval_timer_ptr + 1) = 0b0111;
-                }
-                if (press & 0x8) {   // KEY3
-                    counter = 50000;
-                    *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
-                    *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
-                    *(interval_timer_ptr + 1) = 0b0111;
-                }
-            break;
-        }
-
+        case 3:
+            if (press & 0x1) {  // KEY0
+                *(interval_timer_ptr + 1) = 0b1011;
+            }
+            if (press & 0x2) {  // KEY1
+                counter = 5000000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+            if (press & 0x4) {  // KEY2
+                counter = 500000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+            if (press & 0x8) {  // KEY3
+                counter = 50000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+        break;
+    }
 
     return;
 }
-
-
-
-
 
 /*******************************************************************************
 
  ********************************************************************************/
 int main(void) {
-
     volatile int *interval_timer_ptr = (int *)TIMER_BASE; // interal timer base address
-    volatile int *KEY_ptr = (int *)KEY_BASE; // pushbutton KEY address
+    volatile int *KEY_ptr = (int *)KEY_BASE;  // pushbutton KEY address
     volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
 
     /* set the interval timer period for scrolling the ADC reads */
@@ -335,8 +488,7 @@ int main(void) {
     *(interval_timer_ptr + 1) = 0b0111;  // STOP = 0, START = 1, CONT = 1, ITO = 1
 
     // enable interrupts for all pushbuttons
-    *(KEY_ptr + 2) = 0xF;             
-    
+    *(KEY_ptr + 2) = 0xF;
 
     /* set front pixel buffer to Buffer 1 */
     *(pixel_ctrl_ptr + 1) = (int)&Buffer1;  // first store the address in the  back buffer
@@ -351,73 +503,77 @@ int main(void) {
     pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // we draw on the back buffer
     clear_screen();  // pixel_buffer_start points to the pixel buffer
 
-
-    /* set interrupt mask bits for levels 0 (interval timer) and level 1 (pushbuttons) */
+    /* set interrupt mask bits for levels 0 (interval timer) and level 1
+    * (pushbuttons) */
     NIOS2_WRITE_IENABLE(0x3);
     NIOS2_WRITE_STATUS(1);  // enable Nios II interrupts
 
-
-    
-    
-    
     while (1) {
-
         switch (State) {
             case 0:
-
-
-
 
             break;
 
             case 1:
 
-
-
-
-
             break;
 
             case 2:
-
-
-
 
             break;
 
             case 3:
                 WriteHEX(ADC_value);
                 clear_screen();
+                DrawFilledBox(40, 20, 280, 199, 0xFFFF);
 
                 for (int i = 0; i < 240; i++) {
-                    plot_pixel(40+i, 199-voltage[i*x_axis_scaling]/voltage_scaling, 0xFF);
+                    plot_pixel(40 + i, 199 - voltage[i * x_axis_scaling] / voltage_scaling, 0xFF);
+                    plot_pixel(40 + i, 199 - current[i * x_axis_scaling] / current_scaling, 0xF800);
                 }
 
-                draw_line(40, 199, 279, 199, 0x0);
-                draw_line(40, 199, 40, 20, 0x0);
-                draw_line(279, 199, 279, 20, 0x0);
-                draw_line(40, 20, 279, 20, 0x0);
+                
+                DrawRectangle(40, 20, 280, 199, 0x0);
 
                 for (int i = 0; i < 6; i++) {
-                    draw_line(40+48*i, 199, 40+48*i, 204, 0x0);
+                    draw_line(40 + 48 * i, 199, 40 + 48 * i, 204, 0x0);
                 }
-                
+
+                /*
+                for (int i = 0; i < 16; i++) {
+                    DrawCharacter(40 + 10 * i, 20, i, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 10, i + 16, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 20, i + 32, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 30, i + 48, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 40, i + 64, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 50, i + 80, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 60, i + 96, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 70, i + 112, 0x0);
+                }
+                */
+
+                DrawString(40, 10, "Graphing Monitor", 0x0);
+                DrawString(120, 210, "Time (sec)", 0x0);
+                DrawString(10, 220, "Voltage (mV):", 0x0);
+                DrawInteger(10+14*8, 220, voltage[sample_index-1], 0x0);
+                DrawString(10, 230, "Current (mA):", 0x0);
+                DrawInteger(10+14*8, 230, current[sample_index-1], 0x0);
+                DrawString(170, 220, "Power (mW):", 0x0);
+                DrawInteger(170+12*8, 220, voltage[sample_index-1] * current[sample_index-1]/1000, 0x0);
+                DrawString(170, 230, "Energy (J):", 0x0);
+                DrawInteger(170+12*8, 230, energy, 0x0);
 
 
-                wait_for_vsync(); // swap front and back buffers on VGA vertical sync
-                pixel_buffer_start = *(pixel_ctrl_ptr + 1); // new back buffer
+                wait_for_vsync();  // swap front and back buffers on VGA vertical sync
+                pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
 
-                if (voltage_index >= x_axis_scaling*240) {
+                if (sample_index >= x_axis_scaling * 240) {
                     x_axis_scaling++;
                 }
-            break;
+                break;
         }
-
-
     }
 }
-
-
 
 void WriteHEX(int value) {
     const char kHexCodes[16] = {
@@ -439,8 +595,8 @@ void WriteHEX(int value) {
         0b01110001   // F
     };
 
-    int* HexAdd1 = (int*)HEX_BASE1;
-    int* HexAdd2 = (int*)HEX_BASE2;
+    int *HexAdd1 = (int *)HEX_BASE1;
+    int *HexAdd2 = (int *)HEX_BASE2;
 
     // Clear the HEX displays
     *HexAdd1 = 0;
@@ -455,7 +611,6 @@ void WriteHEX(int value) {
 
     *HexAdd1 = value0 | (value1 << 8) | (value2 << 16) | (value3 << 24);
     *HexAdd2 = value4 | (value5 << 8);
-
 }
 
 void plot_pixel(int x, int y, short int line_color) {
@@ -478,7 +633,7 @@ void clear_screen() {
     int y, x;
     for (x = 0; x < 320; x++) {
         for (y = 0; y < 240; y++) {
-        plot_pixel(x, y, 0xFFFF);
+        plot_pixel(x, y, 0x94B2);
         }
     }
 }
@@ -521,11 +676,22 @@ void draw_line(int x0, int y0, int x1, int y1, short int color) {
     }
 }
 
-void drawBox(int row, int col, short int color) {
-    for (int i = -1; i < 2; i++) {
-        for (int j = -1; j < 2; j++) {
-        plot_pixel(row + i, col + j, color);
+void DrawFilledBox(int x1, int y1, int x2, int y2, short int color) {
+    for (int i = x1; i <= x2; i++) {
+        for (int j = y1; j <= y2; j++) {
+        plot_pixel(i, j, color);
         }
+    }
+}
+
+void DrawRectangle(int x1, int y1, int x2, int y2, short int color) {
+    for (int i = x1; i <= x2; i++) {
+        plot_pixel(i, y1, color);
+        plot_pixel(i, y2, color);
+    }
+    for (int i = y1; i <= y2; i++) {
+        plot_pixel(x1, i, color);
+        plot_pixel(x2, i, color);
     }
 }
 
