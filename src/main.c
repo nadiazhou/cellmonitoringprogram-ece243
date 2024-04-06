@@ -492,14 +492,14 @@ void ps2_ISR(void) {
         byte_count = 0;
 
         if ((byte2 < 128) && (mouse_x < 310)) {
-            mouse_x = mouse_x + byte2/10;
+            mouse_x = mouse_x + byte2;
         } else if ((mouse_x > 10)) {
-            mouse_x = mouse_x - (256 - byte2)/10;
+            mouse_x = mouse_x - (256 - byte2);
         }
         if ((byte3 < 128) && (mouse_y < 230)) {
-            mouse_y = mouse_y + byte3/10;
+            mouse_y = mouse_y + byte3;
         } else if ((mouse_y > 10)) {
-            mouse_y = mouse_y - (256 - byte3)/10;
+            mouse_y = mouse_y - (256 - byte3);
         }
     }
     /*
