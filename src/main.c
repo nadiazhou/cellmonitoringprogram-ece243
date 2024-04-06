@@ -2,6 +2,59 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+
+
+
+
+
+
+#ifndef __NIOS2_CTRL_REG_MACROS__
+#define __NIOS2_CTRL_REG_MACROS__
+/*****************************************************************************/
+/* Macros for accessing the control registers. */
+/*****************************************************************************/
+#define NIOS2_READ_STATUS(dest) \
+    do {                          \
+        dest = __builtin_rdctl(0);  \
+    } while (0)
+#define NIOS2_WRITE_STATUS(src) \
+    do {                          \
+        __builtin_wrctl(0, src);    \
+    } while (0)
+#define NIOS2_READ_ESTATUS(dest) \
+    do {                           \
+        dest = __builtin_rdctl(1);   \
+    } while (0)
+#define NIOS2_READ_BSTATUS(dest) \
+    do {                           \
+        dest = __builtin_rdctl(2);   \
+    } while (0)
+#define NIOS2_READ_IENABLE(dest) \
+    do {                           \
+        dest = __builtin_rdctl(3);   \
+    } while (0)
+#define NIOS2_WRITE_IENABLE(src) \
+    do {                           \
+        __builtin_wrctl(3, src);     \
+    } while (0)
+#define NIOS2_READ_IPENDING(dest) \
+    do {                            \
+        dest = __builtin_rdctl(4);    \
+    } while (0)
+#define NIOS2_READ_CPUID(dest) \
+    do {                         \
+        dest = __builtin_rdctl(5); \
+    } while (0)
+#endif
+
+
+
+
+
+
+
+
+
 /* the global variables are written by interrupt service routines; we have to
  * declare
  * these as volatile to avoid the compiler caching their values in registers */
@@ -11,10 +64,12 @@ volatile int current[100000] = {0};
 volatile int power[100000] = {0};
 volatile int energy = 0; // Joules
 volatile int sample_index = 0;
-volatile int voltage_scaling = 27;  // scale of voltage y-axis (mV/pixel) (180 pixel height)
+volatile int voltage_scaling = 28;  // scale of voltage y-axis (mV/pixel) (180 pixel height)
 volatile int current_scaling = 23;  // scale of current y-axis (mA/pixel) (180 pixel height)
 volatile int x_axis_scaling = 1;  // scale of x-axis in terms of ADC samples (dynamic)
 volatile int State = 3;
+volatile int mouse_x = 100;
+volatile int mouse_y = 100;
 
 volatile int TIMER_BASE = 0xFF202000;
 volatile int KEY_BASE = 0xFF200050;
@@ -23,6 +78,7 @@ volatile int LED_BASE = 0xFF200000;
 volatile int ADC_BASE = 0xFF204000;
 volatile int HEX_BASE1 = 0xFF200020;
 volatile int HEX_BASE2 = 0xFF200030;
+volatile int PS2_BASE = 0xFF200100;
 
 volatile int pixel_buffer_start;  // global variable
 short int Buffer1[240][512];      // 240 rows, 512 (320 + padding) columns
@@ -211,44 +267,7 @@ struct ADC_t {
     volatile unsigned int channel7;
 };
 
-#ifndef __NIOS2_CTRL_REG_MACROS__
-#define __NIOS2_CTRL_REG_MACROS__
-/*****************************************************************************/
-/* Macros for accessing the control registers. */
-/*****************************************************************************/
-#define NIOS2_READ_STATUS(dest) \
-    do {                          \
-        dest = __builtin_rdctl(0);  \
-    } while (0)
-#define NIOS2_WRITE_STATUS(src) \
-    do {                          \
-        __builtin_wrctl(0, src);    \
-    } while (0)
-#define NIOS2_READ_ESTATUS(dest) \
-    do {                           \
-        dest = __builtin_rdctl(1);   \
-    } while (0)
-#define NIOS2_READ_BSTATUS(dest) \
-    do {                           \
-        dest = __builtin_rdctl(2);   \
-    } while (0)
-#define NIOS2_READ_IENABLE(dest) \
-    do {                           \
-        dest = __builtin_rdctl(3);   \
-    } while (0)
-#define NIOS2_WRITE_IENABLE(src) \
-    do {                           \
-        __builtin_wrctl(3, src);     \
-    } while (0)
-#define NIOS2_READ_IPENDING(dest) \
-    do {                            \
-        dest = __builtin_rdctl(4);    \
-    } while (0)
-#define NIOS2_READ_CPUID(dest) \
-    do {                         \
-        dest = __builtin_rdctl(5); \
-    } while (0)
-#endif
+
 
 /* function prototypes */
 int main(void);
@@ -263,6 +282,9 @@ void draw_line(int x0, int y0, int x1, int y1, short int color);
 void drawFilledBox(int x1, int y1, int x2, int y2, short int color);
 void DrawRectangle(int x1, int y1, int x2, int y2, short int color);
 void swap(int *a, int *b);
+void DrawInteger(int x, int y, int num, int color);
+void DrawCharacter(int x, int y, char c, int color);
+void DrawString(int x, int y, char *string, int color);
 
 /* The assembly language code below handles CPU reset processing */
 void the_reset(void) __attribute__((section(".reset")));
@@ -384,7 +406,11 @@ void interrupt_handler(void) {
     {
         interval_timer_ISR();
     }
-    if (ipending & 0x2)  // pushbuttons are interrupt level 1
+    if (ipending & 0x80) // PS2 are interrupt level 1
+    {
+        ps2_ISR();
+    }
+    if (ipending & 0x2)  // pushbuttons are interrupt level 2
     {
         pushbutton_ISR();
     }
@@ -472,108 +498,115 @@ void pushbutton_ISR(void) {
     return;
 }
 
-/*******************************************************************************
+volatile int byte_count = 0;
+char byte1 = 0;
+char byte2 = 0;
+char byte3 = 0;
 
- ********************************************************************************/
-int main(void) {
-    volatile int *interval_timer_ptr = (int *)TIMER_BASE; // interal timer base address
-    volatile int *KEY_ptr = (int *)KEY_BASE;  // pushbutton KEY address
-    volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
-
-    /* set the interval timer period for scrolling the ADC reads */
-    int counter = 5000000;  // 1/(50 MHz) x (5000000) = 100 msec, 10Hz
-    *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
-    *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
-    /* start interval timer, enable its interrupts */
-    *(interval_timer_ptr + 1) = 0b0111;  // STOP = 0, START = 1, CONT = 1, ITO = 1
-
-    // enable interrupts for all pushbuttons
-    *(KEY_ptr + 2) = 0xF;
-
-    /* set front pixel buffer to Buffer 1 */
-    *(pixel_ctrl_ptr + 1) = (int)&Buffer1;  // first store the address in the  back buffer
-    /* now, swap the front/back buffers, to set the front buffer location */
-    wait_for_vsync();
-    /* initialize a pointer to the pixel buffer, used by drawing functions */
-    pixel_buffer_start = *(pixel_ctrl_ptr);
-    clear_screen();  // pixel_buffer_start points to the pixel buffer
-
-    /* set back pixel buffer to Buffer 2 */
-    *(pixel_ctrl_ptr + 1) = (int)&Buffer2;
-    pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // we draw on the back buffer
-    clear_screen();  // pixel_buffer_start points to the pixel buffer
-
-    /* set interrupt mask bits for levels 0 (interval timer) and level 1
-    * (pushbuttons) */
-    NIOS2_WRITE_IENABLE(0x3);
-    NIOS2_WRITE_STATUS(1);  // enable Nios II interrupts
-
-    while (1) {
-        switch (State) {
-            case 0:
-
-            break;
-
-            case 1:
-
-            break;
-
-            case 2:
-
-            break;
-
-            case 3:
-                WriteHEX(ADC_value);
-                clear_screen();
-                DrawFilledBox(40, 20, 280, 199, 0xFFFF);
-
-                for (int i = 0; i < 240; i++) {
-                    plot_pixel(40 + i, 199 - voltage[i * x_axis_scaling] / voltage_scaling, 0xFF);
-                    plot_pixel(40 + i, 199 - current[i * x_axis_scaling] / current_scaling, 0xF800);
-                }
-
-                
-                DrawRectangle(40, 20, 280, 199, 0x0);
-
-                for (int i = 0; i < 6; i++) {
-                    draw_line(40 + 48 * i, 199, 40 + 48 * i, 204, 0x0);
-                }
-
-                /*
-                for (int i = 0; i < 16; i++) {
-                    DrawCharacter(40 + 10 * i, 20, i, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 10, i + 16, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 20, i + 32, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 30, i + 48, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 40, i + 64, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 50, i + 80, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 60, i + 96, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 70, i + 112, 0x0);
-                }
-                */
-
-                DrawString(40, 10, "Graphing Monitor", 0x0);
-                DrawString(120, 210, "Time (sec)", 0x0);
-                DrawString(10, 220, "Voltage (mV):", 0x0);
-                DrawInteger(10+14*8, 220, voltage[sample_index-1], 0x0);
-                DrawString(10, 230, "Current (mA):", 0x0);
-                DrawInteger(10+14*8, 230, current[sample_index-1], 0x0);
-                DrawString(170, 220, "Power (mW):", 0x0);
-                DrawInteger(170+12*8, 220, voltage[sample_index-1] * current[sample_index-1]/1000, 0x0);
-                DrawString(170, 230, "Energy (J):", 0x0);
-                DrawInteger(170+12*8, 230, energy, 0x0);
+void ps2_ISR(void) {
 
 
-                wait_for_vsync();  // swap front and back buffers on VGA vertical sync
-                pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
+    volatile int *PS2_ptr = (int *)PS2_BASE;
+    int PS2_data, RVALID, RAVAIL;
+    PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
+    RVALID = (PS2_data & 0x8000);	// extract the RVALID field
+    if (RVALID != 0) {
+        /* always save the last three bytes received */
+        byte1 = byte2;
+        byte2 = byte3;
+        byte3 = PS2_data & 0xFF;
+        byte_count++;
+    }
+    if ((byte2 == 0xAA) && (byte3 == 0x00)) {
+        // mouse inserted; initialize sending of data
+        *(PS2_ptr) = 0xF4;
+        byte_count = 0;
+    } else if (byte_count == 3) { 
+        WriteHEXadecimal(byte1<<16 | byte2<<8 | byte3);
+        byte_count = 0;
 
-                if (sample_index >= x_axis_scaling * 240) {
-                    x_axis_scaling++;
-                }
-                break;
+        if ((byte2 < 128) && (mouse_x < 310)) {
+            mouse_x = mouse_x + byte2/10;
+        } else if ((mouse_x > 10)) {
+            mouse_x = mouse_x - (256 - byte2)/10;
+        }
+        if ((byte3 < 128) && (mouse_y < 230)) {
+            mouse_y = mouse_y + byte3/10;
+        } else if ((mouse_y > 10)) {
+            mouse_y = mouse_y - (256 - byte3)/10;
         }
     }
+    /*
+	if (RVALID) {
+        // always save the last three bytes received
+        byte1 = PS2_data & 0xFF;
+        PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
+        byte2 = PS2_data & 0xFF;
+        if( (byte1 == 0xAA) && (byte2 == 0x00) ) {
+            // mouse inserted; initialize sending of data
+            *(PS2_ptr) = 0xF4;
+        } else {
+            PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
+            byte3 = PS2_data & 0xFF;
+            if (byte2 < 128) {
+                mouse_x = mouse_x + byte2;
+            } else {
+                mouse_x = mouse_x - (256 - byte2);
+            }
+            if (byte3 < 128) {
+                mouse_y = mouse_y + byte3;
+            } else {
+                mouse_y = mouse_y - (256 - byte3);
+            }
+        }
+	}
+    */
+    //WriteHEXadecimal(byte1<<16 | byte2<<8 | byte3);
 }
+
+void WriteHEXadecimal(int value) {
+    const char kHexCodes[16] = {
+        0b00111111,  // 0
+        0b00000110,  // 1
+        0b01011011,  // 2
+        0b01001111,  // 3
+        0b01100110,  // 4
+        0b01101101,  // 5
+        0b01111101,  // 6
+        0b00000111,  // 7
+        0b01111111,  // 8
+        0b01101111,  // 9
+        0b01110111,  // A
+        0b01111100,  // B
+        0b00111001,  // C
+        0b01011110,  // D
+        0b01111001,  // E
+        0b01110001   // F
+    };
+
+    int *HexAdd1 = (int *)HEX_BASE1;
+    int *HexAdd2 = (int *)HEX_BASE2;
+
+    // Clear the HEX displays
+    *HexAdd1 = 0;
+    *HexAdd2 = 0;
+
+    int value0 = kHexCodes[value & 0xF];
+    int value1 = kHexCodes[(value >> 4) & 0xF];
+    int value2 = kHexCodes[(value >> 8) & 0xF];
+    int value3 = kHexCodes[(value >> 12) & 0xF];
+    int value4 = kHexCodes[(value >> 16) & 0xF];
+    int value5 = kHexCodes[(value >> 20) & 0xF];
+
+    *HexAdd1 = value0 | (value1 << 8) | (value2 << 16) | (value3 << 24);
+    *HexAdd2 = value4 | (value5 << 8);
+
+}
+
+
+
+
+
 
 void WriteHEX(int value) {
     const char kHexCodes[16] = {
@@ -700,3 +733,149 @@ void swap(int *a, int *b) {
     *a = *b;
     *b = temp;
 }
+
+void DrawMouse(void) {
+    // mouse cursor in the shape of a finger
+    static const short int mouse_cursor[14][13] = {
+        {1, 1, 1, 1, 1, 0x0, 1, 1, 1, 1, 1, 1, 1},
+        {1, 1, 1, 1, 0x0, 0xFFFF, 0x0, 1, 1, 1, 1, 1, 1},
+        {1, 1, 1, 1, 0x0, 0xFFFF, 0x0, 1, 1, 1, 1, 1, 1},
+        {1, 1, 1, 1, 0x0, 0xFFFF, 0x0, 1, 1, 1, 1, 1},
+        {1, 0x0, 1, 1, 0x0, 0xFFFF, 0x0, 0x0, 1, 1, 1, 1, 1},
+        {0x0, 0xFFFF, 0x0, 1, 0x0, 0xFFFF, 0x0, 0xFFFF, 0x0, 0x0, 1, 1, 1},
+        {0x0, 0xFFFF, 0xFFFF, 0x0, 0x0, 0xFFFF, 0x0, 0xFFFF, 0x0, 0xFFFF, 0x0, 0x0, 1},
+        {0x0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0x0, 0xFFFF, 0x0, 0xFFFF, 0x0},
+        {1, 0x0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0x0},
+        {1, 1, 0x0, 0xFFFF, 0xFFFF, 0x0, 0xFFFF, 0x0, 0xFFFF, 0x0, 0xFFFF, 0xFFFF, 0x0},
+        {1, 1, 1, 0x0, 0xFFFF, 0x0, 0xFFFF, 0x0, 0xFFFF, 0x0, 0xFFFF, 0x0, 1},
+        {1, 1, 1, 0x0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0x0, 1},
+        {1, 1, 1, 1, 0x0, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0x0, 1, 1},
+        {1, 1, 1, 1, 1, 0x0, 0x0, 0x0, 0x0, 0x0, 1, 1, 1}
+    };
+    for (int i = 0; i < 14; i++) {
+        for (int j = 0; j < 13; i++) {
+            if (mouse_cursor[i][j] != 1) {
+                plot_pixel(mouse_x + j - 5, mouse_y + i - 1, mouse_cursor[i][j]);
+            }
+        }
+    }
+
+}
+
+
+/*******************************************************************************
+
+ ********************************************************************************/
+int main(void) {
+    volatile int *interval_timer_ptr = (int *)TIMER_BASE; // interal timer base address
+    volatile int *KEY_ptr = (int *)KEY_BASE;  // pushbutton KEY address
+    volatile int *pixel_ctrl_ptr = (int *)0xFF203020;
+    volatile int *PS2_ptr = (int *)PS2_BASE;
+
+    /* set the interval timer period for scrolling the ADC reads */
+    int counter = 5000000;  // 1/(50 MHz) x (5000000) = 100 msec, 10Hz
+    *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+    *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+    /* start interval timer, enable its interrupts */
+    *(interval_timer_ptr + 1) = 0b0111;  // STOP = 0, START = 1, CONT = 1, ITO = 1
+
+    // enable interrupts for all pushbuttons
+    *(KEY_ptr + 2) = 0xF;
+
+    // enable interrupts for PS2
+    *(PS2_ptr + 1) = 0x1;
+
+    /* set front pixel buffer to Buffer 1 */
+    *(pixel_ctrl_ptr + 1) = (int)&Buffer1;  // first store the address in the  back buffer
+    /* now, swap the front/back buffers, to set the front buffer location */
+    wait_for_vsync();
+    /* initialize a pointer to the pixel buffer, used by drawing functions */
+    pixel_buffer_start = *(pixel_ctrl_ptr);
+    clear_screen();  // pixel_buffer_start points to the pixel buffer
+
+    /* set back pixel buffer to Buffer 2 */
+    *(pixel_ctrl_ptr + 1) = (int)&Buffer2;
+    pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // we draw on the back buffer
+    clear_screen();  // pixel_buffer_start points to the pixel buffer
+
+    /* set interrupt mask bits for levels 0 (interval timer) and level 1
+    * (pushbuttons) */
+    NIOS2_WRITE_IENABLE(0x83);
+    NIOS2_WRITE_STATUS(1);  // enable Nios II interrupts
+
+
+    WriteHEXadecimal(0xABCDEF);
+    while (1) {
+        switch (State) {
+            case 0:
+
+            break;
+
+            case 1:
+                plot_pixel(mouse_x, mouse_y, 0xF800);
+                wait_for_vsync();  // swap front and back buffers on VGA vertical sync
+                pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
+                //WriteHEX(mouse_x);
+                clear_screen();
+
+            break;
+
+            case 2:
+
+            break;
+
+            case 3:
+                WriteHEX(ADC_value);
+                clear_screen();
+                DrawFilledBox(40, 20, 280, 200, 0xFFFF);
+
+                for (int i = 0; i < 240; i++) {
+                    plot_pixel(40 + i, 200 - voltage[i * x_axis_scaling] / voltage_scaling, 0xFF);
+                    plot_pixel(40 + i, 200 - current[i * x_axis_scaling] / current_scaling, 0xF800);
+                }
+
+                
+                DrawRectangle(40, 20, 280, 200, 0x0);
+
+                for (int i = 0; i < 6; i++) {
+                    draw_line(40 + 48 * i, 200, 40 + 48 * i, 204, 0x0);
+                }
+
+                /*
+                for (int i = 0; i < 16; i++) {
+                    DrawCharacter(40 + 10 * i, 20, i, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 10, i + 16, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 20, i + 32, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 30, i + 48, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 40, i + 64, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 50, i + 80, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 60, i + 96, 0x0);
+                    DrawCharacter(40 + 10 * i, 20 + 70, i + 112, 0x0);
+                }
+                */
+
+                DrawString(40, 10, "Graphing Monitor", 0x0);
+                DrawString(120, 210, "Time (sec)", 0x0);
+                DrawString(10, 220, "Voltage (mV):", 0x0);
+                DrawInteger(10+14*8, 220, voltage[sample_index-1], 0x0);
+                DrawString(10, 230, "Current (mA):", 0x0);
+                DrawInteger(10+14*8, 230, current[sample_index-1], 0x0);
+                DrawString(170, 220, "Power (mW):", 0x0);
+                DrawInteger(170+12*8, 220, voltage[sample_index-1] * current[sample_index-1]/1000, 0x0);
+                DrawString(170, 230, "Energy (J):", 0x0);
+                DrawInteger(170+12*8, 230, energy, 0x0);
+
+                plot_pixel(mouse_x, mouse_y, 0xF800);
+                //DrawMouse();
+                wait_for_vsync();  // swap front and back buffers on VGA vertical sync
+                pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
+
+                if (sample_index >= x_axis_scaling * 240) {
+                    x_axis_scaling++;
+                }
+                break;
+        }
+    }
+}
+
+
