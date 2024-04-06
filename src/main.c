@@ -473,6 +473,7 @@ void ps2_ISR(void) {
 
 
     volatile int *PS2_ptr = (int *)PS2_BASE;
+    volatile int *LED_ptr = (int *)LED_BASE;
     int PS2_data, RVALID, RAVAIL;
     PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
     RVALID = (PS2_data & 0x8000);	// extract the RVALID field
@@ -501,6 +502,7 @@ void ps2_ISR(void) {
         } else if ((mouse_y > 10)) {
             mouse_y = mouse_y - (256 - byte3);
         }
+        *LED_ptr = byte3;
     }
     /*
 	if (RVALID) {
