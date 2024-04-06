@@ -275,6 +275,7 @@ void interrupt_handler(void);
 void interval_timer_ISR(void);
 void pushbutton_ISR(void);
 void WriteHEX(int value);
+void WriteHEXadecimal(int value);
 void clear_screen();
 void wait_for_vsync();
 void plot_pixel(int x, int y, short int line_color);
