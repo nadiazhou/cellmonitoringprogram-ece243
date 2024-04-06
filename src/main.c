@@ -218,42 +218,6 @@ static int font[128][2] = {
     {0x7E7E7E7E, 0x7E7E0000}  /* DEL */
 };
 
-void DrawCharacter(int x, int y, char c, int color) {
-    int i, j;
-    unsigned int mask;
-    int charIndex = c;
-
-    mask = 0x80000000;  // Reset mask for each new line
-    // Loop for the top half of the character (8x4)
-    for (i = 0; i < 8; i++) {
-        if (i == 4) {
-        mask = 0x80000000;  // Reset mask for the bottom half of the character
-        }
-        for (j = 0; j < 8; j++) {
-        // Use font[charIndex][0] for the top 32 bits
-        if ((i < 4 && (font[charIndex][0] & mask)) ||
-            (i >= 4 && (font[charIndex][1] & mask))) {
-            plot_pixel(x + j, y + i, color);
-        }
-        mask >>= 1;  // Shift mask right for next bit
-        }
-    }
-}
-
-void DrawString(int x, int y, char *string, int color) {
-    int i = 0;
-    while (string[i]) {
-        DrawCharacter(x + i * 8, y, string[i], color);
-        i++;
-    }
-}
-
-void DrawInteger(int x, int y, int num, int color) {
-    char str[10];
-    sprintf(str, "%d", num);
-    DrawString(x, y, str, color);
-}
-
 // ADC register offsets
 // data in lower 12 bits
 struct ADC_t {
@@ -274,6 +238,7 @@ int main(void);
 void interrupt_handler(void);
 void interval_timer_ISR(void);
 void pushbutton_ISR(void);
+void ps2_ISR(void);
 void WriteHEX(int value);
 void WriteHEXadecimal(int value);
 void clear_screen();
@@ -733,6 +698,42 @@ void swap(int *a, int *b) {
     int temp = *a;
     *a = *b;
     *b = temp;
+}
+
+void DrawCharacter(int x, int y, char c, int color) {
+    int i, j;
+    unsigned int mask;
+    int charIndex = c;
+
+    mask = 0x80000000;  // Reset mask for each new line
+    // Loop for the top half of the character (8x4)
+    for (i = 0; i < 8; i++) {
+        if (i == 4) {
+        mask = 0x80000000;  // Reset mask for the bottom half of the character
+        }
+        for (j = 0; j < 8; j++) {
+        // Use font[charIndex][0] for the top 32 bits
+        if ((i < 4 && (font[charIndex][0] & mask)) ||
+            (i >= 4 && (font[charIndex][1] & mask))) {
+            plot_pixel(x + j, y + i, color);
+        }
+        mask >>= 1;  // Shift mask right for next bit
+        }
+    }
+}
+
+void DrawString(int x, int y, char *string, int color) {
+    int i = 0;
+    while (string[i]) {
+        DrawCharacter(x + i * 8, y, string[i], color);
+        i++;
+    }
+}
+
+void DrawInteger(int x, int y, int num, int color) {
+    char str[10];
+    sprintf(str, "%d", num);
+    DrawString(x, y, str, color);
 }
 
 void DrawMouse(void) {
