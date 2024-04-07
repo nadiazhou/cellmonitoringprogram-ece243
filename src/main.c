@@ -67,7 +67,7 @@ volatile int sample_index = 0;
 volatile int voltage_scaling = 28;  // scale of voltage y-axis (mV/pixel) (180 pixel height)
 volatile int current_scaling = 23;  // scale of current y-axis (mA/pixel) (180 pixel height)
 volatile int x_axis_scaling = 1;  // scale of x-axis in terms of ADC samples (dynamic)
-volatile int State = 1;
+volatile int State = 3;
 volatile int mouse_x = 0;
 volatile int mouse_y = 0;
 volatile int mouse_x_coordinate = 100;
@@ -450,7 +450,7 @@ void pushbutton_ISR(void) {
 
         case 3:
             if (press & 0x1) {  // KEY0
-                *(interval_timer_ptr + 1) = 0b1011;
+                byte_count = 0;
             }
             if (press & 0x2) {  // KEY1
                 counter = 5000000;
