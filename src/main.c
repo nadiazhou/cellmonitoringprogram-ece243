@@ -859,10 +859,10 @@ int main(void) {
                 } else if (mouse_x < 0 && mouse_x_coordinate > 10) {
                     mouse_x_coordinate--;
                 }
-                if (mouse_y > 0 && mouse_y_coordinate < 230) {
-                    mouse_y_coordinate++;
-                } else if (mouse_y < 0 && mouse_y_coordinate > 10) {
+                if (mouse_y > 0 && mouse_y_coordinate > 10) {
                     mouse_y_coordinate--;
+                } else if (mouse_y < 0 && mouse_y_coordinate < 230) {
+                    mouse_y_coordinate++;
                 }
                 mouse_x = 0;
                 mouse_y = 0;
