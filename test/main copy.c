@@ -1553,10 +1553,6 @@ void graphPower(){
 }
 
 void setupGraphing(){
-     for (int i = 0; i < 240; i++) {
-                    plot_pixel(40 + i, 200 - current[i * x_axis_scaling] / current_scaling, 0xF800);
-                }
-
                 
                 DrawRectangle(40, 20, 280, 200, 0x0);
 
@@ -1576,12 +1572,16 @@ void setupGraphing(){
                     DrawCharacter(40 + 10 * i, 20 + 70, i + 112, 0x0);
                 }
                 */
-               if(State = VOLTAGE){
+               switch(State){
+                    case VOLTAGE:
                     DrawString(40, 10, "VOLTAGE", 0x0);
-               } else if (State = CURRENT) {
+                    break;
+                    case CURRENT:
                     DrawString(40, 10, "CURRENT", 0x0);
-               } else if (State = POWER) {
+                    break;
+                    case POWER:
                     DrawString(40, 10, "POWER", 0x0);
+                    break;
                }
 
                 DrawString(120, 210, "Time (sec)", 0x0);
