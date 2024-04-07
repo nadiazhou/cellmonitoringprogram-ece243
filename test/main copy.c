@@ -11,6 +11,8 @@ void clear_screen();
 char keyboard();
 
 void graphVoltage();
+void graphCurrent();
+void graphPower();
 
 #ifndef __NIOS2_CTRL_REG_MACROS__
 #define __NIOS2_CTRL_REG_MACROS__
