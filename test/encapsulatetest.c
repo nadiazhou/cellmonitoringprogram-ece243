@@ -73,7 +73,8 @@ volatile int power[100000] = {0};
 volatile int energy = 0; // Joules
 volatile int sample_index = 0;
 volatile int voltage_scaling = 28;  // scale of voltage y-axis (mV/pixel) (180 pixel height)
-volatile int current_scaling = 23;  // scale of current y-axis (mA/pixel) (180 pixel height)
+volatile int current_scaling = 28;  // scale of current y-axis (mA/pixel) (180 pixel height)
+volatile int power_scaling = 28;  // scale of current y-axis (mA/pixel) (180 pixel height)
 volatile int x_axis_scaling = 1;  // scale of x-axis in terms of ADC samples (dynamic)
 volatile int State = 0;
 volatile int mouse_x = 0;
@@ -754,6 +755,7 @@ void swap(int *a, int *b);
 void DrawInteger(int x, int y, int num, int color);
 void DrawCharacter(int x, int y, char c, int color);
 void DrawString(int x, int y, char *string, int color);
+void setupGraphing();
 
 /* The assembly language code below handles CPU reset processing */
 void the_reset(void) __attribute__((section(".reset")));
@@ -945,14 +947,61 @@ void pushbutton_ISR(void) {
                 State = VOLTAGE;
             } else if (press & 0x2) {
                 State = CURRENT;
-            } else if (press & 0x3) {
+            } else if (press & 0x4) {
                 State = POWER;
-            } else if (press & 0x3) {
+            } else if (press & 0x8) {
                 State = ENERGY;
             } 
         break;
 
         case VOLTAGE:
+            // PUT THIS IN A FUNCTION
+            if (press & 0x1) {  // KEY0
+                byte_count = 0;
+            }
+            if (press & 0x2) {  // KEY1
+                counter = 5000000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+            if (press & 0x4) {  // KEY2
+                counter = 500000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+            if (press & 0x8) {  // KEY3
+                counter = 50000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+        break;
+         case CURRENT:
+            if (press & 0x1) {  // KEY0
+                byte_count = 0;
+            }
+            if (press & 0x2) {  // KEY1
+                counter = 5000000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+            if (press & 0x4) {  // KEY2
+                counter = 500000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+            if (press & 0x8) {  // KEY3
+                counter = 50000;
+                *(interval_timer_ptr + 0x2) = (counter & 0xFFFF);
+                *(interval_timer_ptr + 0x3) = (counter >> 16) & 0xFFFF;
+                *(interval_timer_ptr + 1) = 0b0111;
+            }
+        break;
+         case POWER:
             if (press & 0x1) {  // KEY0
                 byte_count = 0;
             }
@@ -1405,83 +1454,28 @@ int main(void) {
                 if (sample_index >= x_axis_scaling * 240) {
                     x_axis_scaling++;
                 }
-                
-                /*WriteHEX(ADC_value);
-                clear_screen();
-                DrawFilledBox(40, 20, 280, 200, 0xFFFF);
-
-                for (int i = 0; i < 240; i++) {
-                    plot_pixel(40 + i, 200 - voltage[i * x_axis_scaling] / voltage_scaling, 0xFF);
-                    plot_pixel(40 + i, 200 - current[i * x_axis_scaling] / current_scaling, 0xF800);
-                }
-
-                
-                DrawRectangle(40, 20, 280, 200, 0x0);
-
-                for (int i = 0; i < 6; i++) {
-                    draw_line(40 + 48 * i, 200, 40 + 48 * i, 204, 0x0);
-                }*/
-
-                /*
-                for (int i = 0; i < 16; i++) {
-                    DrawCharacter(40 + 10 * i, 20, i, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 10, i + 16, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 20, i + 32, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 30, i + 48, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 40, i + 64, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 50, i + 80, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 60, i + 96, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 70, i + 112, 0x0);
-                }
-                */
-
-                /*DrawString(40, 10, "Graphing Monitor", 0x0);
-                DrawString(120, 210, "Time (sec)", 0x0);
-                DrawString(10, 220, "Voltage (mV):", 0x0);
-                DrawInteger(10+14*8, 220, voltage[sample_index-1], 0x0);
-                DrawString(10, 230, "Current (mA):", 0x0);
-                DrawInteger(10+14*8, 230, current[sample_index-1], 0x0);
-                DrawString(170, 220, "Power (mW):", 0x0);
-                DrawInteger(170+12*8, 220, voltage[sample_index-1] * current[sample_index-1]/1000, 0x0);
-                DrawString(170, 230, "Energy (J):", 0x0);
-                DrawInteger(170+12*8, 230, energy, 0x0);*/
-                /*
-                if (mouse_x > 0) {
-                    mouse_x_coordinate++;
-                } else if (mouse_x < 0) {
-                    mouse_x_coordinate--;
-                }
-                if (mouse_y > 0) {
-                    mouse_y_coordinate++;
-                } else if (mouse_y < 0) {
-                    mouse_y_coordinate--;
-                }
-                mouse_x = 0;
-                mouse_y = 0;
-                */
-
-                /*if (mouse_x > 0 && mouse_x_coordinate < 310) {
-                    mouse_x_coordinate++;
-                } else if (mouse_x < 0 && mouse_x_coordinate > 10) {
-                    mouse_x_coordinate--;
-                }
-                if (mouse_y > 0 && mouse_y_coordinate > 10) {
-                    mouse_y_coordinate--;
-                } else if (mouse_y < 0 && mouse_y_coordinate < 230) {
-                    mouse_y_coordinate++;
-                }
-                mouse_x = 0;
-                mouse_y = 0;
-                plot_pixel(mouse_x_coordinate, mouse_y_coordinate, 0xF800);
-
-                //DrawMouse();
+                break;
+            
+            case CURRENT:
+                graphCurrent();
                 wait_for_vsync();  // swap front and back buffers on VGA vertical sync
                 pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
 
                 if (sample_index >= x_axis_scaling * 240) {
                     x_axis_scaling++;
                 }
-                break;*/
+                break;
+            
+            case POWER:
+                graphPower();
+                wait_for_vsync();  // swap front and back buffers on VGA vertical sync
+                pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
+
+                if (sample_index >= x_axis_scaling * 240) {
+                    x_axis_scaling++;
+                }
+                break;
+
         }
     }
 }
@@ -1527,6 +1521,37 @@ void graphVoltage(){
 
                 for (int i = 0; i < 240; i++) {
                     plot_pixel(40 + i, 200 - voltage[i * x_axis_scaling] / voltage_scaling, 0xFF);
+                }
+                setupGraphing();
+               
+}
+
+void graphCurrent(){
+    WriteHEX(ADC_value);
+                clear_screen();
+                DrawFilledBox(40, 20, 280, 200, 0xFFFF);
+
+                for (int i = 0; i < 240; i++) {
+                    plot_pixel(40 + i, 200 - current[i * x_axis_scaling] / current_scaling, 0xF800);
+                }
+                //DrawMouse();
+                 setupGraphing();
+}
+
+
+void graphPower(){
+    WriteHEX(ADC_value);
+                clear_screen();
+                DrawFilledBox(40, 20, 280, 200, 0xFFFF);
+                for (int i = 0; i < 240; i++) {
+                    plot_pixel(40 + i, 200 - power[i * x_axis_scaling] / power_scaling, 0xF800);
+                }
+                //DrawMouse();
+                setupGraphing();
+}
+
+void setupGraphing(){
+     for (int i = 0; i < 240; i++) {
                     plot_pixel(40 + i, 200 - current[i * x_axis_scaling] / current_scaling, 0xF800);
                 }
 
@@ -1549,8 +1574,14 @@ void graphVoltage(){
                     DrawCharacter(40 + 10 * i, 20 + 70, i + 112, 0x0);
                 }
                 */
+               if(State = VOLTAGE){
+                    DrawString(40, 10, "VOLTAGE", 0x0);
+               } else if (State = CURRENT) {
+                    DrawString(40, 10, "CURRENT", 0x0);
+               } else if (State = POWER) {
+                    DrawString(40, 10, "POWER", 0x0);
+               }
 
-                DrawString(40, 10, "Graphing Monitor", 0x0);
                 DrawString(120, 210, "Time (sec)", 0x0);
                 DrawString(10, 220, "Voltage (mV):", 0x0);
                 DrawInteger(10+14*8, 220, voltage[sample_index-1], 0x0);
@@ -1589,5 +1620,4 @@ void graphVoltage(){
                 mouse_y = 0;
                 plot_pixel(mouse_x_coordinate, mouse_y_coordinate, 0xF800);
 
-                //DrawMouse();
 }
