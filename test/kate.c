@@ -8,16 +8,11 @@ void plot_pixel(int x, int y, short int line_color);
 void clear_screen();
 
 char keyboard();
-void wordCompare(char word[5], int screennumber);
-
-void playComputer();
-void playMultiplayer();
 
 int main() {
     while (1) { //infinite loop
         //start screen
         drawScreen(1);
-        //press enter to start
         while (keyboard() != '\n') {}    //error detection
 
         //choose game style screen
@@ -30,10 +25,7 @@ int main() {
             if ((output == '1') || (output == '2'))
                 i = 0;
         }
-        if (output == '1') 
-            playComputer();
-        else 
-            playMultiplayer();
+        
     };
 }
 
@@ -705,46 +697,4 @@ char keyboard() {
         }
     }
 return 0;
-}
-
-void playComputer() {
-    char words[NUMWORDS][5] = { "CAT", "DOG", "CAR"};
-    /*  OTHER POTENTIAL WORDS: Bat, Ant, Bow, Bed, Car */
- 
-    int wordselect = 0;
-    int screenselect = 30;
-    char word[5];
-    
-    int i;
-    for (i = 0; words[wordselect][i] != '\0'; ++i)
-        word[i] = words[wordselect][i];
-    word[i] = '\0';
-
-    if (wordselect == 0) {
-        wordCompare(word, screenselect);    //if wordselect = cat
-    }
-
-    //structured so more words can be added easily
-
-    return;
-}
-
-void playMultiplayer() {
-
-}
-
-void wordCompare(char word[5], int screennumber) {
-    int i = 0;
-    drawScreen(screennumber);
-    while (i != 3) {
-        if (keyboard() != word[i])
-            drawScreen(10);
-        else {
-            i++;
-            drawScreen(screennumber + i);
-        }
-
-    }
-    drawScreen(11);
-    return;
 }
