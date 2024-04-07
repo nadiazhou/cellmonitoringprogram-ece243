@@ -67,9 +67,18 @@ volatile int sample_index = 0;
 volatile int voltage_scaling = 28;  // scale of voltage y-axis (mV/pixel) (180 pixel height)
 volatile int current_scaling = 23;  // scale of current y-axis (mA/pixel) (180 pixel height)
 volatile int x_axis_scaling = 1;  // scale of x-axis in terms of ADC samples (dynamic)
-volatile int State = 3;
-volatile int mouse_x = 100;
-volatile int mouse_y = 100;
+volatile int State = 1;
+volatile int mouse_x = 0;
+volatile int mouse_y = 0;
+volatile int mouse_x_coordinate = 100;
+volatile int mouse_y_coordinate = 100;
+
+
+volatile int byte_count = 0;
+unsigned char byte1 = 0;
+unsigned char byte2 = 0;
+unsigned char byte3 = 0;
+
 
 volatile int TIMER_BASE = 0xFF202000;
 volatile int KEY_BASE = 0xFF200050;
@@ -429,6 +438,9 @@ void pushbutton_ISR(void) {
         break;
 
         case 1:
+            if (press & 0x1) {
+                byte_count = 0;
+            }
 
         break;
 
@@ -464,10 +476,7 @@ void pushbutton_ISR(void) {
     return;
 }
 
-volatile int byte_count = 0;
-char byte1 = 0;
-char byte2 = 0;
-char byte3 = 0;
+
 
 void ps2_ISR(void) {
 
@@ -477,21 +486,21 @@ void ps2_ISR(void) {
     int PS2_data, RVALID, RAVAIL;
     PS2_data = *(PS2_ptr);  // read the Data register in the PS/2 port
     RVALID = (PS2_data & 0x8000);	// extract the RVALID field
-    if (RVALID != 0) {
+    if  (RVALID != 0) {
         /* always save the last three bytes received */
         byte1 = byte2;
         byte2 = byte3;
         byte3 = PS2_data & 0xFF;
         byte_count++;
     }
-    if ((byte2 == 0xAA) && (byte3 == 0x00)) {
+    if  ((byte2 == 0xAA) && (byte3 == 0x00)) {
         // mouse inserted; initialize sending of data
         *(PS2_ptr) = 0xF4;
         byte_count = 0;
     } else if (byte_count == 3) { 
         WriteHEXadecimal(byte1<<16 | byte2<<8 | byte3);
         byte_count = 0;
-
+        /*
         if ((byte2 < 128) && (mouse_x < 310)) {
             mouse_x = mouse_x + byte2;
         } else if ((mouse_x > 10)) {
@@ -502,7 +511,36 @@ void ps2_ISR(void) {
         } else if ((mouse_y > 10)) {
             mouse_y = mouse_y - (256 - byte3);
         }
+        */
+    
+        if (byte1 & 0x10) { // means neg x
+            mouse_x--;
+        } else if (byte2 > 0) {
+            mouse_x++;
+        }
+        if (byte1 & 0x20) { // means neg y
+            mouse_y--;
+        } else if (byte3 > 0) {
+            mouse_y++;
+        }
+
+        /*
+        if ((byte2 > 0) && (byte2 < 255)) {
+            if ((byte2 < 128) && (mouse_x < 310)) {
+                mouse_x++;
+            } else if (mouse_x > 10) {
+                mouse_x--;
+            }
+        }
+        if ((byte3 > 0) && (byte3 < 255)) {
+            if ((byte3 < 128) && (mouse_y < 230)) {
+                mouse_y++;
+            } else if (mouse_y > 10) {
+                mouse_y--;
+            }
+        }
         *LED_ptr = byte3;
+        */
     }
     /*
 	if (RVALID) {
@@ -816,7 +854,19 @@ int main(void) {
             break;
 
             case 1:
-                plot_pixel(mouse_x, mouse_y, 0xF800);
+                if (mouse_x > 0 && mouse_x_coordinate < 310) {
+                    mouse_x_coordinate++;
+                } else if (mouse_x < 0 && mouse_x_coordinate > 10) {
+                    mouse_x_coordinate--;
+                }
+                if (mouse_y > 0 && mouse_y_coordinate < 230) {
+                    mouse_y_coordinate++;
+                } else if (mouse_y < 0 && mouse_y_coordinate > 10) {
+                    mouse_y_coordinate--;
+                }
+                mouse_x = 0;
+                mouse_y = 0;
+                plot_pixel(mouse_x_coordinate, mouse_y_coordinate, 0xF800);
                 wait_for_vsync();  // swap front and back buffers on VGA vertical sync
                 pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
                 //WriteHEX(mouse_x);
@@ -868,8 +918,19 @@ int main(void) {
                 DrawInteger(170+12*8, 220, voltage[sample_index-1] * current[sample_index-1]/1000, 0x0);
                 DrawString(170, 230, "Energy (J):", 0x0);
                 DrawInteger(170+12*8, 230, energy, 0x0);
-
-                plot_pixel(mouse_x, mouse_y, 0xF800);
+                if (mouse_x > 0) {
+                    mouse_x_coordinate++;
+                } else if (mouse_x < 0) {
+                    mouse_x_coordinate--;
+                }
+                if (mouse_y > 0) {
+                    mouse_y_coordinate++;
+                } else if (mouse_y < 0) {
+                    mouse_y_coordinate--;
+                }
+                mouse_x = 0;
+                mouse_y = 0;
+                plot_pixel(mouse_x_coordinate, mouse_y_coordinate, 0xF800);
                 //DrawMouse();
                 wait_for_vsync();  // swap front and back buffers on VGA vertical sync
                 pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
