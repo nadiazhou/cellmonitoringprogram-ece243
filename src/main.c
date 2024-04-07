@@ -918,6 +918,7 @@ int main(void) {
                 DrawInteger(170+12*8, 220, voltage[sample_index-1] * current[sample_index-1]/1000, 0x0);
                 DrawString(170, 230, "Energy (J):", 0x0);
                 DrawInteger(170+12*8, 230, energy, 0x0);
+                /*
                 if (mouse_x > 0) {
                     mouse_x_coordinate++;
                 } else if (mouse_x < 0) {
@@ -930,7 +931,22 @@ int main(void) {
                 }
                 mouse_x = 0;
                 mouse_y = 0;
+                */
+
+                if (mouse_x > 0 && mouse_x_coordinate < 310) {
+                    mouse_x_coordinate++;
+                } else if (mouse_x < 0 && mouse_x_coordinate > 10) {
+                    mouse_x_coordinate--;
+                }
+                if (mouse_y > 0 && mouse_y_coordinate > 10) {
+                    mouse_y_coordinate--;
+                } else if (mouse_y < 0 && mouse_y_coordinate < 230) {
+                    mouse_y_coordinate++;
+                }
+                mouse_x = 0;
+                mouse_y = 0;
                 plot_pixel(mouse_x_coordinate, mouse_y_coordinate, 0xF800);
+
                 //DrawMouse();
                 wait_for_vsync();  // swap front and back buffers on VGA vertical sync
                 pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
