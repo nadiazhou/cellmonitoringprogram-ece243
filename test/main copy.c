@@ -980,36 +980,6 @@ void pushbutton_ISR(void) {
 }
 
 
-
-void ps2mouse_ISR(void) {
-
-    volatile int *PS2_ptr = (int *)PS2_BASE; // PS/2 port address
-    int PS2_data, RVALID;
-    PS2_data = *(PS2_ptr);  
-    RVALID = (PS2_data & 0x8000); 
-
-    if (RVALID != 0) {
-      
-        byte1 = byte2;
-        byte2 = byte3;
-        byte3 = PS2_data & 0xFF;
-        byte_count++;
-
-        if (byte_count == 3) {
-        
-            left_button_pressed = byte1 & 0x01;   // left button
-            right_button_pressed = byte1 & 0x02;  // right button is the second bit
-            middle_button_pressed = byte1 & 0x04; // middle button is the third bit
-            
-            HandleMouseClick(left_button_pressed, middle_button_pressed, right_button_pressed);
-
-            byte_count = 0; 
-        }
-    }
-    
-}
-
-
 void ps2_ISR(void) {
 
 
