@@ -513,7 +513,7 @@ void interval_timer_ISR() {
     while (ADCp->channel0 & 0x8000);
 
     voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 840 / 4096 * 5;
-    current[sample_index] = (ADCp->channel1 & 0xFFF) * 800 / 4096 / 5 * 3;
+    current[sample_index] = (ADCp->channel1 & 0xFFF) * 840 / 4096 / 5 * 3;
     power[sample_index] = voltage[sample_index] * current[sample_index] / 1000;
     energy[sample_index] = energy[sample_index-1] + power[sample_index] / 10;
 
@@ -602,7 +602,7 @@ void ps2_ISR(void) {
                         State = MONITOR_SETUP;
                     }
                     mouse_hover = 1;
-                } else if (mouse_x >= 214 && mouse_x <= 303 && mouse_y >= 128 && mouse_y <= 133) {
+                } else if (mouse_x >= 214 && mouse_x <= 303 && mouse_y >= 128 && mouse_y <= 143) {
                     if (byte1 & 0x01) {
                         State = MULTIMETER;
                         *(interval_timer_ptr + 1) = 0b0111;
