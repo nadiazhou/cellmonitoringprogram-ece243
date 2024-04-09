@@ -903,7 +903,7 @@ void interval_timer_ISR() {
     ADCp->channel0 = 1;
     while (ADCp->channel0 & 0x8000);
 
-    voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 1000 / 4096 * 5;
+    voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 832 / 4096 * 5;
     current[sample_index] = (ADCp->channel1 & 0xFFF) * 1000 / 4096 * 5 / 2;
     energy = energy + voltage[sample_index] * current[sample_index] * 36 / 10 / 3600 / 100;
 
@@ -1010,10 +1010,10 @@ void ps2_ISR(void) {
         } else if ((mouse_x < 310) && !(byte1 & 0x10)) {
             mouse_x = mouse_x + byte2/4;
         }
-        if ((mouse_y > 10) && (byte1 & 0x20)) {
-            mouse_y = mouse_y + byte3/4;
-        } else if ((mouse_y < 230) && !(byte1 & 0x20)){
-            mouse_y = mouse_y + byte3/4;
+        if ((mouse_y > 10) && !(byte1 & 0x20)) {
+            mouse_y = mouse_y - byte3/4;
+        } else if ((mouse_y < 230) && (byte1 & 0x20)){
+            mouse_y = mouse_y - byte3/4;
         }
 
 
@@ -1600,8 +1600,8 @@ void graphVoltage(){
                 DrawInteger(10+14*8, 230, current[sample_index-1], 0x0);
                 DrawString(170, 220, "Power (mW):", 0x0);
                 DrawInteger(170+12*8, 220, voltage[sample_index-1] * current[sample_index-1]/1000, 0x0);
-                DrawString(170, 230, "Energy (J):", 0x0);
-                DrawInteger(170+12*8, 230, energy, 0x0);
+                DrawString(170, 230, "Energy(kJ):", 0x0);
+                DrawInteger(170+12*8, 230, energy/1000, 0x0);
                 /*
                 if (mouse_x > 0) {
                     mouse_x_coordinate++;
