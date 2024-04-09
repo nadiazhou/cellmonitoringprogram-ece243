@@ -1208,13 +1208,13 @@ int main(void) {
                 DrawString(100, 210, "Time:     s/div", 0x0);
                 DrawInteger(150, 210, x_axis_scaling*48/10, 0x0);
 
-                DrawString(90, 220, "V:     mV/div", 0x0);
+                DrawString(90, 220, "V:     mV/div", 0xFF);
                 DrawInteger(110, 220, 1000, 0x0);
-                DrawString(90, 230, "I:     mA/div", 0x0);
+                DrawString(90, 230, "I:     mA/div", 0xF800);
                 DrawInteger(110, 230, 150, 0x0);
-                DrawString(210, 220, "P:     mW/div", 0x0);
+                DrawString(210, 220, "P:     mW/div", 0x7700);
                 DrawInteger(230, 220, 1000, 0x0);
-                DrawString(210, 230, "E:      J/div", 0x0);
+                DrawString(210, 230, "E:      J/div", 0x0FF0);
                 DrawInteger(230, 230, 1000, 0x0);
 
                 DrawRectangle(10, 215, 50, 230, 0xFFFF);
