@@ -1049,6 +1049,7 @@ int main(void) {
 
     // enable interrupts for PS2
     *(PS2_ptr + 1) = 0x1;
+    *(PS2_ptr) = 0xFF;
 
     /* set front pixel buffer to Buffer 1 */
     *(pixel_ctrl_ptr + 1) = (int)&Buffer1;  // first store the address in the  back buffer
