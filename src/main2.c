@@ -514,7 +514,7 @@ void interval_timer_ISR() {
     ADCp->channel0 = 1;
     while (ADCp->channel0 & 0x8000);
 
-    voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 840 / 4096 * 5;
+    voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 850 / 4096 * 5;
     current[sample_index] = (ADCp->channel1 & 0xFFF) * 840 / 4096 / 5 * 3;
     power[sample_index] = voltage[sample_index] * current[sample_index] / 1000;
     energy[sample_index] = energy[sample_index-1] + power[sample_index] / 10;
@@ -602,6 +602,7 @@ void ps2_ISR(void) {
                 } else if (mouse_x >= 214 && mouse_x <= 303 && mouse_y >= 105 && mouse_y <= 120) {
                     if (byte1 & 0x01) {
                         State = MONITOR_SETUP;
+                        e_total = 30;
                     }
                     mouse_hover = 1;
                 } else if (mouse_x >= 214 && mouse_x <= 303 && mouse_y >= 128 && mouse_y <= 143) {
@@ -1287,7 +1288,7 @@ int main(void) {
                 DrawString(40, 90, "Current (mA):", 0x0);
                 DrawInteger(152, 90, current[sample_index-1], 0x0);
                 DrawString(40, 100, "Power (mW):", 0x0);
-                DrawInteger(152, 100, power[sample_index-1]/1000, 0x0);
+                DrawInteger(152, 100, power[sample_index-1], 0x0);
                 DrawString(40, 110, "Energy (J):", 0x0);
                 DrawInteger(152, 110, energy[sample_index-1]/1000, 0x0);
 
@@ -1309,11 +1310,15 @@ int main(void) {
                 
                 start_one = SOC % 10;
                 start_ten = (SOC / 10) % 10;
+
+                /*
                 DrawInteger(250, 15, SOC, 0x0);
                 DrawInteger(250, 25, e_initial, 0x0);
                 DrawInteger(250, 35, e_total, 0x0);
                 DrawInteger (250, 45, partial, 0x0);
-                
+                */
+
+
                 if (start_one == 0) draw_zero(230, 65);
                 else if (start_one == 1) draw_one(230, 65);
                 else if (start_one == 2) draw_two(230, 65);
