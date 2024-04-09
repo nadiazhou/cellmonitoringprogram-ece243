@@ -484,6 +484,7 @@ void pushbutton_ISR(void) {
     volatile int *KEY_ptr = (int *)KEY_BASE;
     volatile int *slider_switch_ptr = (int *)SW_BASE;
     volatile int *interval_timer_ptr = (int *)TIMER_BASE;  // interal timer base address
+    volatile int *PS2_ptr = (int *)PS2_BASE;
 
     int press;
     int counter;
@@ -495,11 +496,14 @@ void pushbutton_ISR(void) {
     if (press & 0x1) {
         byte_count = 0;
     }
-
+    if (press & 0x2) {
+        *(PS2_ptr) = 0xF4;
+    }
+    /*
     switch (State) {
         case INTRODUCTION:
             if (press & 0x1) {
-                State = GRAPHING_MENU;
+                //State = GRAPHING_MENU;
             }
 
         break;
@@ -540,7 +544,9 @@ void pushbutton_ISR(void) {
                 *(interval_timer_ptr + 1) = 0b0111;
             }
         break;
+        
     }
+    */
 
     return;
 }
