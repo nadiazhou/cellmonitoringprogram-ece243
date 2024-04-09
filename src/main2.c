@@ -513,7 +513,7 @@ void interval_timer_ISR() {
     while (ADCp->channel0 & 0x8000);
 
     voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 840 / 4096 * 5;
-    current[sample_index] = (ADCp->channel1 & 0xFFF) * 840 / 4096 / 5;
+    current[sample_index] = (ADCp->channel1 & 0xFFF) * 800 / 4096 / 5 * 3;
     power[sample_index] = voltage[sample_index] * current[sample_index] / 1000;
     energy[sample_index] = energy[sample_index-1] + power[sample_index] / 10;
 
@@ -1403,6 +1403,8 @@ int main(void) {
             case MONITOR:
                 draw_monitor();
                 // calculate SOC 
+
+                E_initial = SOC x 
                 
                 start_one = SOC % 10;
                 start_ten = (SOC / 10) % 10;
