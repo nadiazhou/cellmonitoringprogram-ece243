@@ -703,6 +703,10 @@ void ps2_ISR(void) {
                 } else if (mouse_x >= 206 && mouse_x <= 273 && mouse_y >= 173 && mouse_y <= 187) {
                     if (byte1 & 0x01) {
                         State = MONITOR;
+                        *(interval_timer_ptr + 1) = 0b0111;
+                        sample_index = 0;
+                        energy[0] = 0;
+                        x_axis_scaling = 1;
                     }
                     mouse_hover = 1;
                 } else {
@@ -1404,7 +1408,7 @@ int main(void) {
                 draw_monitor();
                 // calculate SOC 
 
-                E_initial = SOC x 
+                
                 
                 start_one = SOC % 10;
                 start_ten = (SOC / 10) % 10;
