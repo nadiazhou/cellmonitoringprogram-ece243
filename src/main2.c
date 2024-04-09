@@ -1185,10 +1185,10 @@ void WriteHEX(int value) {
 void draw_mouse (int x, int y); 
 void draw_mouse (int x, int y) {
     int a, b;
-    for (a = 0; a < 15; a++) {
-        for (b = 0; b < 15; b++) {
-            if (mouse[b][a] != 12777)
-            plot_pixel (x+a, y+b, mouse[b][a]);
+    for (b = 0; b < 15; b++) {
+        for (a = 0; a < 15; a++) {
+            if (mouse[b][a] != 65535)
+            plot_pixel (x+a-6, y+b-1, mouse[b][a]);
         }
     }
 }
