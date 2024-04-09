@@ -312,6 +312,7 @@ void DrawString(int x, int y, char *string, int color);
 void draw_mouse (int x, int y); 
 void draw_start();
 void draw_graphing();
+void draw_select ();
 void drawScreen(int screen);
 void plot_pixell(int x, int y, short int line_color);
 void clear_screen();
@@ -486,6 +487,11 @@ void pushbutton_ISR(void) {
     press = *(KEY_ptr + 3);  // read the pushbutton interrupt register
     *(KEY_ptr + 3) = press;  // Clear the interrupt
 
+    // Mouse Reset
+    if (press & 0x1) {
+        byte_count = 0;
+    }
+
     switch (State) {
         case INTRODUCTION:
             if (press & 0x1) {
@@ -495,9 +501,7 @@ void pushbutton_ISR(void) {
         break;
 
         case 1:
-            if (press & 0x1) {
-                byte_count = 0;
-            }
+
 
         break;
 
@@ -596,29 +600,34 @@ void ps2_ISR(void) {
                 }
                 break;
             case GRAPHING_MENU:
-                if (mouse_x >= 36 && mouse_x <= 52 && mouse_y >= 79 && mouse_y <= 94){
+                if (mouse_x >= 34 && mouse_x <= 52 && mouse_y >= 79 && mouse_y <= 94){
                     if (byte1 & 0x01) {
-
+                        draw_select(34, 79);
                     }
                     mouse_hover = 1;
                 } else if (mouse_x >= 34 && mouse_x <= 52 && mouse_y >= 102 && mouse_y <= 117) {
                     if (byte1 & 0x01) {
-
+                        draw_select(36, 102);
                     }
                     mouse_hover = 1;
                 } else if (mouse_x >= 34 && mouse_x <= 52 && mouse_y >= 126 && mouse_y <= 141) {
                     if (byte1 & 0x01) {
-
+                        draw_select(36, 136);
                     }
                     mouse_hover = 1;
                 } else if (mouse_x >= 34 && mouse_x <= 52 && mouse_y >= 151 && mouse_y <= 165) {
                     if (byte1 & 0x01) {
-
+                        draw_select(36, 151);
                     }
                     mouse_hover = 1;
                 } else if (mouse_x >= 235 && mouse_x <= 303 && mouse_y >= 174 && mouse_y <= 188) {
                     if (byte1 & 0x01) {
                         State = GRAPHING;
+                    }
+                    mouse_hover = 1;
+                } else if (mouse_x >= 35 && mouse_x <= 103 && mouse_y >= 174 && mouse_y <= 188) {
+                    if (byte1 & 0x01) {
+                        State = INTRODUCTION;
                     }
                     mouse_hover = 1;
                 } else {
@@ -851,6 +860,16 @@ void draw_graphing () {
         }
     }
 }
+
+void draw_select (int x, int y) {
+    int a, b;
+    for (a = 0; a < 16; a++) {
+        for (b = 0; b < 16; b++) {
+            plot_pixel (a+x, b+y, select[b][a]);
+        }
+    }
+}
+
 void plot_pixel(int x, int y, short int line_color) {
     volatile short int *one_pixel_address;
     one_pixel_address = pixel_buffer_start + (y << 10) + (x << 1);
@@ -1053,31 +1072,12 @@ int main(void) {
             case INTRODUCTION:
                 draw_start();
             break;
-            /*
-            case GRAPHING:
-            
-                page = graphing;
-                for (int k = 0; k < 153600; k+=2) {
-                int red = ((page[k + 1] & 0xF8) >> 3) << 11; 
-                int green = (((page[k] & 0xE0) >> 5)) | ((page[k+1] & 0x7) << 3) ;	
-                int blue = (page[k] & 0x1f);
-                short int p = red | ( (green << 5) | blue);
-                plot_pixell((k/2)%320, (k/2)/320, p);}
-
-            break;
-            */
+           
             case GRAPHING_MENU:
-            
                 draw_graphing();
             break;
-            case GRAPHING:
-            /* graphVoltage();
-                wait_for_vsync();  // swap front and back buffers on VGA vertical sync
-                pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
 
-                if (sample_index >= x_axis_scaling * 240) {
-                    x_axis_scaling++;
-            }*/
+            case GRAPHING:
                 clear_screen();
                 DrawFilledBox(40, 20, 280, 200, 0xFFFF);
 
@@ -1092,19 +1092,6 @@ int main(void) {
                 for (int i = 0; i < 6; i++) {
                     draw_line(40 + 48 * i, 200, 40 + 48 * i, 204, 0x0);
                 }
-
-                /*
-                for (int i = 0; i < 16; i++) {
-                    DrawCharacter(40 + 10 * i, 20, i, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 10, i + 16, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 20, i + 32, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 30, i + 48, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 40, i + 64, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 50, i + 80, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 60, i + 96, 0x0);
-                    DrawCharacter(40 + 10 * i, 20 + 70, i + 112, 0x0);
-                }
-                */
 
                 DrawString(40, 10, "Graphing Monitor", 0x0);
                 DrawString(120, 210, "Time (sec)", 0x0);
