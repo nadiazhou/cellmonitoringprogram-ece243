@@ -513,7 +513,7 @@ void interval_timer_ISR() {
     while (ADCp->channel0 & 0x8000);
 
     voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 840 / 4096 * 5;
-    current[sample_index] = (ADCp->channel1 & 0xFFF) * 840 / 4096 * 5 / 5;
+    current[sample_index] = (ADCp->channel1 & 0xFFF) * 840 / 4096 / 5;
     power[sample_index] = voltage[sample_index] * current[sample_index] / 1000;
     energy[sample_index] = energy[sample_index-1] + power[sample_index] / 10;
 
@@ -1402,8 +1402,33 @@ int main(void) {
 
             case MONITOR:
                 draw_monitor();
+                // calculate SOC 
+                
+                start_one = SOC % 10;
+                start_ten = (SOC / 10) % 10;
                 
                 // 175 60 
+                if (start_one == 0) draw_zero(230, 65);
+                else if (start_one == 1) draw_one(230, 65);
+                else if (start_one == 2) draw_two(230, 65);
+                else if (start_one == 3) draw_three(230, 65);
+                else if (start_one == 4) draw_four(230, 65);
+                else if (start_one == 5) draw_five(230, 65);
+                else if (start_one == 6) draw_six(230, 65);
+                else if (start_one == 7) draw_seven(230, 65);
+                else if (start_one == 8) draw_eight(230, 65);
+                else if (start_one == 9) draw_nine(230, 65);
+
+                if (start_ten == 0) draw_zero(180, 60);
+                else if (start_ten == 1) draw_one(180, 65);
+                else if (start_ten == 2) draw_two(180, 65);
+                else if (start_ten == 3) draw_three(180, 65);
+                else if (start_ten == 4) draw_four(180, 65);
+                else if (start_ten == 5) draw_five(180, 65);
+                else if (start_ten == 6) draw_six(180, 65);
+                else if (start_ten == 7) draw_seven(180, 65);
+                else if (start_ten == 8) draw_eight(180, 65);
+                else if (start_ten == 9) draw_nine(180, 65);
 
                 
                 break;
