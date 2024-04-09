@@ -514,7 +514,7 @@ void interval_timer_ISR() {
     ADCp->channel0 = 1;
     while (ADCp->channel0 & 0x8000);
 
-    voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 850 / 4096 * 5;
+    voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 830 / 4096 * 5;
     current[sample_index] = (ADCp->channel1 & 0xFFF) * 840 / 4096 / 5 * 3;
     power[sample_index] = voltage[sample_index] * current[sample_index] / 1000;
     energy[sample_index] = energy[sample_index-1] + power[sample_index] / 10;
