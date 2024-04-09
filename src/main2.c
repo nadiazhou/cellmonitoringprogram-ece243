@@ -77,10 +77,10 @@ volatile int mouse_x_coordinate = 100;
 volatile int mouse_y_coordinate = 100;
 volatile int mouse_hover = 0;
 
-volatile int select_voltage = 0;
-volatile int select_current = 0;
-volatile int select_energy = 0;
-volatile int select_power = 0;
+volatile bool select_voltage = 0;
+volatile bool select_current = 0;
+volatile bool select_energy = 0;
+volatile bool select_power = 0;
 
 
 volatile int byte_count = 0;
@@ -467,7 +467,7 @@ void interval_timer_ISR() {
     while (ADCp->channel0 & 0x8000);
 
     voltage[sample_index] = (ADCp->channel0 & 0xFFF) * 850 / 4096 * 5;
-    current[sample_index] = (ADCp->channel1 & 0xFFF) * 1000 / 4096 * 5 / 5;
+    current[sample_index] = (ADCp->channel1 & 0xFFF) * 1100 / 4096 / 2;
     energy = energy + voltage[sample_index] * current[sample_index] * 36 / 10 / 3600 / 100;
 
     sample_index++;
@@ -606,22 +606,22 @@ void ps2_ISR(void) {
             case GRAPHING_MENU:
                 if (mouse_x >= 34 && mouse_x <= 52 && mouse_y >= 79 && mouse_y <= 94){
                     if (byte1 & 0x01) {
-                        select_voltage = 1;
-                    }
+                        select_voltage = !select_voltage;
+                    } 
                     mouse_hover = 1;
                 } else if (mouse_x >= 34 && mouse_x <= 52 && mouse_y >= 102 && mouse_y <= 117) {
                     if (byte1 & 0x01) {
-                        select_current = 1;
+                        select_current = !select_current;
                     }
                     mouse_hover = 1;
                 } else if (mouse_x >= 34 && mouse_x <= 52 && mouse_y >= 126 && mouse_y <= 141) {
                     if (byte1 & 0x01) {
-                        select_power = 1;
+                        select_power = !select_power;
                     }
                     mouse_hover = 1;
                 } else if (mouse_x >= 34 && mouse_x <= 52 && mouse_y >= 151 && mouse_y <= 165) {
                     if (byte1 & 0x01) {
-                        select_energy = 1;
+                        select_energy = !select_energy;
                     }
                     mouse_hover = 1;
                 } else if (mouse_x >= 235 && mouse_x <= 303 && mouse_y >= 174 && mouse_y <= 188) {
@@ -1079,10 +1079,10 @@ int main(void) {
            
             case GRAPHING_MENU:
                 draw_graphing();
-                if (select_voltage) draw_select(34, 79);
-                if (select_current) draw_select(34, 102);
-                if (select_power) draw_select(34, 126);
-                if (select_energy) draw_select(34, 151);
+                if (select_voltage) draw_select(35, 78);
+                if (select_current) draw_select(35, 107);
+                if (select_power) draw_select(35, 125);
+                if (select_energy) draw_select(35, 150);
             break;
 
             case GRAPHING:
