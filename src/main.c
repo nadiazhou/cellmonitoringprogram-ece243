@@ -67,7 +67,7 @@ volatile int sample_index = 0;
 volatile int voltage_scaling = 28;  // scale of voltage y-axis (mV/pixel) (180 pixel height)
 volatile int current_scaling = 23;  // scale of current y-axis (mA/pixel) (180 pixel height)
 volatile int x_axis_scaling = 1;  // scale of x-axis in terms of ADC samples (dynamic)
-volatile int State = 3;
+volatile int State = 1;
 volatile int mouse_x = 0;
 volatile int mouse_y = 0;
 volatile int mouse_x_coordinate = 100;
@@ -75,9 +75,9 @@ volatile int mouse_y_coordinate = 100;
 
 
 volatile int byte_count = 0;
-unsigned char byte1 = 0;
-unsigned char byte2 = 0;
-unsigned char byte3 = 0;
+signed char byte1 = 0;
+signed char byte2 = 0;
+signed char byte3 = 0;
 
 
 volatile int TIMER_BASE = 0xFF202000;
@@ -500,19 +500,21 @@ void ps2_ISR(void) {
     } else if (byte_count == 3) { 
         WriteHEXadecimal(byte1<<16 | byte2<<8 | byte3);
         byte_count = 0;
-        /*
-        if ((byte2 < 128) && (mouse_x < 310)) {
-            mouse_x = mouse_x + byte2;
-        } else if ((mouse_x > 10)) {
-            mouse_x = mouse_x - (256 - byte2);
+        
+        if ((mouse_x > 10) && (byte1 & 0x10)) {
+            mouse_x = mouse_x + byte2/4;
+        } else if (mouse_x < 310) {
+            mouse_x = mouse_x + byte2/4;
         }
-        if ((byte3 < 128) && (mouse_y < 230)) {
-            mouse_y = mouse_y + byte3;
-        } else if ((mouse_y > 10)) {
-            mouse_y = mouse_y - (256 - byte3);
+        if ((mouse_y > 10) && (byte1 & 0x20)) {
+            mouse_y = mouse_y + byte3/4;
+        } else if (mouse_y < 230) {
+            mouse_y = mouse_y + byte3/4;
         }
-        */
+        
     
+    
+        /*
         if (byte1 & 0x10) { // means neg x
             mouse_x--;
         } else if (byte2 > 0) {
@@ -523,6 +525,9 @@ void ps2_ISR(void) {
         } else if (byte3 > 0) {
             mouse_y++;
         }
+
+        */
+
 
         /*
         if ((byte2 > 0) && (byte2 < 255)) {
@@ -864,9 +869,9 @@ int main(void) {
                 } else if (mouse_y < 0 && mouse_y_coordinate < 230) {
                     mouse_y_coordinate++;
                 }
-                mouse_x = 0;
-                mouse_y = 0;
-                plot_pixel(mouse_x_coordinate, mouse_y_coordinate, 0xF800);
+                //mouse_x = 0;
+                //mouse_y = 0;
+                plot_pixel(mouse_x, mouse_y, 0xF800);
                 wait_for_vsync();  // swap front and back buffers on VGA vertical sync
                 pixel_buffer_start = *(pixel_ctrl_ptr + 1);  // new back buffer
                 //WriteHEX(mouse_x);
